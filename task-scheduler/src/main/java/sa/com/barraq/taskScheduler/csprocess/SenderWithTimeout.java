@@ -1,7 +1,7 @@
 package sa.com.barraq.taskScheduler.csprocess;
 
-import org.jcsp.lang.AltingChannelOutput;
-import org.jcsp.lang.CSProcess;
+import org.jcsp.lang.*;
+import sa.com.barraq.taskScheduler.exceptions.SenderTimedOutException;
 
 public class SenderWithTimeout implements CSProcess {
 
@@ -20,7 +20,16 @@ public class SenderWithTimeout implements CSProcess {
     @Override
     public void run() {
         synchronized (lock) {
-
+            final CSTimer tim = new CSTimer();
+            tim.setAlarm(tim.read () + this.timeout);
+            Alternative alt = new Alternative(new Guard[]{this.out, tim});
+            switch (alt.select()) {
+                case 0: {
+                    out.write(data);
+                    break;
+                }
+                case 1: throw new SenderTimedOutException();
+            }
         }
     }
 }
