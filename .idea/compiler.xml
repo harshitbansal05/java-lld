@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="CompilerConfiguration">
+    <annotationProcessing>
+      <profile name="Maven default annotation processors profile" enabled="true">
+        <sourceOutputDir name="target/generated-sources/annotations" />
+        <sourceTestOutputDir name="target/generated-test-sources/test-annotations" />
+        <outputRelativeToContentRoot value="true" />
+        <module name="event-bus" />
+        <module name="cache" />
+        <module name="parking-lot" />
+        <module name="chess" />
+        <module name="rate-limit" />
+        <module name="rate-limiter" />
+        <module name="cab-booking" />
+        <module name="ticket-booking" />
+        <module name="distributed-cache" />
+        <module name="task-scheduler" />
+        <module name="concurrency-examples" />
+        <module name="concurrency" />
+      </profile>
+    </annotationProcessing>
+  </component>
+  <component name="JavacSettings">
+    <option name="ADDITIONAL_OPTIONS_OVERRIDE">
+      <module name="cab-booking" options="-parameters" />
+    </option>
+  </component>
+</project>
