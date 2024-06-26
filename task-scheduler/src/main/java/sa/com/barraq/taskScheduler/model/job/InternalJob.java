@@ -1,10 +1,7 @@
 package sa.com.barraq.taskScheduler.model.job;
 
 import com.cronutils.utils.StringUtils;
-import lombok.AllArgsConstructor;
-import lombok.Builder;
-import lombok.Getter;
-import lombok.Setter;
+import lombok.*;
 import org.jcsp.lang.Channel;
 import org.jcsp.lang.One2OneChannel;
 import sa.com.barraq.taskScheduler.csprocess.SenderFactory;
@@ -17,8 +14,6 @@ import sa.com.barraq.taskScheduler.model.locker.Locker;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
-import java.util.concurrent.ArrayBlockingQueue;
-import java.util.concurrent.BlockingQueue;
 import java.util.function.Consumer;
 
 import static sa.com.barraq.taskScheduler.exceptions.TaskSchedulerErrors.*;
@@ -26,6 +21,8 @@ import static sa.com.barraq.taskScheduler.exceptions.TaskSchedulerErrors.*;
 @Getter
 @Setter
 @Builder
+@NoArgsConstructor
+@AllArgsConstructor
 public class InternalJob {
     private UUID id;
     private String name;
@@ -48,12 +45,14 @@ public class InternalJob {
     private Consumer<JobErrorEvent> afterJobRunsWithError;
 
     private Locker locker;
-    private final BlockingQueue<Object> cancelled = new ArrayBlockingQueue<>(1);
-    private final One2OneChannel<Object> cancelCh = Channel.one2one(1);
+    private One2OneChannel<Object> cancelCh = Channel.one2one(1);
 
-    public void stop() throws InterruptedException {
-        cancelled.put(new Object());
+    public void stop() {
         SenderFactory.getPoisoner(String.valueOf(cancelCh.hashCode()), cancelCh.out(), 1).run();
+    }
+
+    public void resetCancelCh() {
+        cancelCh = Channel.one2one(1);
     }
 
     @Getter

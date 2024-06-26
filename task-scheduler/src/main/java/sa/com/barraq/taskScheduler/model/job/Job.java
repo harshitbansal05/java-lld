@@ -1,42 +1,36 @@
 package sa.com.barraq.taskScheduler.model.job;
 
-import lombok.AllArgsConstructor;
+import org.jcsp.lang.AltingChannelInput;
+import org.jcsp.lang.Channel;
+import org.jcsp.lang.One2OneChannel;
 import org.jcsp.lang.One2OneChannelSymmetric;
+import sa.com.barraq.taskScheduler.csprocess.ReceiverFactory;
 import sa.com.barraq.taskScheduler.csprocess.SenderFactory;
+import sa.com.barraq.taskScheduler.exceptions.ReceiverTimedOutException;
 import sa.com.barraq.taskScheduler.exceptions.SenderTimedOutException;
-import sa.com.barraq.taskScheduler.model.job.request.JobOutRequest;
 import sa.com.barraq.taskScheduler.model.job.request.RunJobRequest;
+import sa.com.barraq.taskScheduler.model.job.request.dto.ReceiverResponse;
 import sa.com.barraq.taskScheduler.utils.TaskSchedulerUtils;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
-import java.util.concurrent.ArrayBlockingQueue;
-import java.util.concurrent.BlockingQueue;
-import java.util.concurrent.SynchronousQueue;
-import java.util.concurrent.TimeUnit;
 
 import static sa.com.barraq.taskScheduler.exceptions.TaskSchedulerErrors.ErrJobNotFound;
 import static sa.com.barraq.taskScheduler.exceptions.TaskSchedulerErrors.ErrJobRunNowFailed;
-import static sa.com.barraq.taskScheduler.exceptions.TaskSchedulerErrors.ErrNone;
 
-@AllArgsConstructor
 public class Job implements IJob {
 
     private final UUID id;
     private final String name;
     private final List<String> tags;
-    private final SynchronousQueue<JobOutRequest> jobOutRequestQueue;
-    private final SynchronousQueue<RunJobRequest> runJobRequestQueue;
     private final One2OneChannelSymmetric<Object> runJobCh, jobOutCh;
 
     Job(UUID id, String name, List<String> tags, One2OneChannelSymmetric<Object> runJobCh, One2OneChannelSymmetric<Object> jobOutCh) {
         this.id = id;
         this.name = name;
         this.tags = tags;
-        this.jobOutRequestQueue = new SynchronousQueue<>();
-        this.runJobRequestQueue = new SynchronousQueue<>();
         this.runJobCh = runJobCh;
         this.jobOutCh = jobOutCh;
     }
@@ -58,14 +52,14 @@ public class Job implements IJob {
 
     @Override
     public LocalDateTime lastRunAt() throws Exception {
-        InternalJob job = TaskSchedulerUtils.requestJob(this.id, jobOutRequestQueue);
+        InternalJob job = TaskSchedulerUtils.requestJob(this.id, this.jobOutCh);
         if (job == null || job.getId() == null) throw ErrJobNotFound;
         return job.getLastRun();
     }
 
     @Override
     public LocalDateTime nextRunAt() throws Exception {
-        InternalJob job = TaskSchedulerUtils.requestJob(this.id, jobOutRequestQueue);
+        InternalJob job = TaskSchedulerUtils.requestJob(this.id, this.jobOutCh);
         if (job == null || job.getId() == null) throw ErrJobNotFound;
         if (job.getNextScheduled().isEmpty()) return null;
         return job.getNextScheduled().getFirst();
@@ -73,7 +67,7 @@ public class Job implements IJob {
 
     @Override
     public List<LocalDateTime> nextRunsAt(int count) throws Exception {
-        InternalJob job = TaskSchedulerUtils.requestJob(this.id, jobOutRequestQueue);
+        InternalJob job = TaskSchedulerUtils.requestJob(this.id, this.jobOutCh);
         if (job == null || job.getId() == null) throw ErrJobNotFound;
         if (job.getNextScheduled().isEmpty()) return null;
         int lengthNextScheduled = job.getNextScheduled().size();
@@ -88,24 +82,26 @@ public class Job implements IJob {
 
     @Override
     public void runNow() throws Exception {
-        BlockingQueue<Throwable> resp =  new ArrayBlockingQueue<>(1);
+        One2OneChannel<Object> resp = Channel.one2one(1);
         try {
-            SenderFactory.getSenderWithTimeout(String.valueOf(runJobCh.hashCode()), runJobCh.out(), new Object(), 100).run();
+            SenderFactory.getSenderWithTimeout(
+                    String.valueOf(runJobCh.hashCode()),
+                    runJobCh.out(),
+                    new RunJobRequest(id, resp),
+                    100)
+                    .run();
         } catch (SenderTimedOutException exception) {
             throw ErrJobRunNowFailed;
         }
-        Throwable error = resp.poll(100, TimeUnit.MILLISECONDS);
-        if (error == null) throw ErrJobRunNowFailed;
-        if (error != ErrNone) throw (Exception) error;
-    }
 
-    public void runNowDeprecated() throws Exception {
-        BlockingQueue<Throwable> resp =  new ArrayBlockingQueue<>(1);
-        if (!runJobRequestQueue.offer(new RunJobRequest(id, resp), 100, TimeUnit.MILLISECONDS)) {
+        ReceiverResponse response = new ReceiverResponse();
+        try {
+            ReceiverFactory.getReceiverWithTimeout(String.valueOf(resp.hashCode()),
+                    new AltingChannelInput[]{resp.in()}, response, 100).run();
+        } catch (ReceiverTimedOutException exception) {
             throw ErrJobRunNowFailed;
         }
-        Throwable error = resp.poll(100, TimeUnit.MILLISECONDS);
-        if (error == null) throw ErrJobRunNowFailed;
-        if (error != ErrNone) throw (Exception) error;
+
+        if (response.getData() != null) throw (Exception) response.getData();
     }
 }
