@@ -14,7 +14,6 @@ import sa.com.barraq.taskScheduler.model.locker.Locker;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
-import java.util.function.Consumer;
 
 import static sa.com.barraq.taskScheduler.exceptions.TaskSchedulerErrors.*;
 
@@ -40,9 +39,9 @@ public class InternalJob {
     private LocalDateTime startTime;
     private boolean startImmediately;
 
-    private Consumer<JobEvent> afterJobRuns;
-    private Consumer<JobEvent> beforeJobRuns;
-    private Consumer<JobErrorEvent> afterJobRunsWithError;
+    private IRunnable afterJobRuns;
+    private IRunnable beforeJobRuns;
+    private IRunnable afterJobRunsWithError;
 
     private Locker locker;
     private One2OneChannel<Object> cancelCh = Channel.one2one(1);
@@ -130,21 +129,21 @@ public class InternalJob {
         };
     }
 
-    static EventListener beforeJobRuns(Consumer<JobEvent> eventListenerFunc) {
+    static EventListener beforeJobRuns(IRunnable eventListenerFunc) {
         return (job) -> {
             if (eventListenerFunc == null) throw ErrEventListenerFuncNil;
             job.beforeJobRuns = eventListenerFunc;
         };
     }
 
-    static EventListener afterJobRuns(Consumer<JobEvent> eventListenerFunc) {
+    static EventListener afterJobRuns(IRunnable eventListenerFunc) {
         return (job) -> {
             if (eventListenerFunc == null) throw ErrEventListenerFuncNil;
             job.afterJobRuns = eventListenerFunc;
         };
     }
 
-    static EventListener afterJobRunsWithError(Consumer<JobErrorEvent> eventListenerFunc) {
+    static EventListener afterJobRunsWithError(IRunnable eventListenerFunc) {
         return (job) -> {
             if (eventListenerFunc == null) throw ErrEventListenerFuncNil;
             job.afterJobRunsWithError = eventListenerFunc;
